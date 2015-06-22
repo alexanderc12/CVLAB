@@ -1,16 +1,16 @@
 package modelo.dao;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import modelo.entidad.Articulo;
-import modelo.entidad.Autor;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+
+import persistencia.LectorArchivosTextos;
 
 /**
  * Usando la liberia jsoup y algunos metodos de la clase String, analiza el
@@ -24,49 +24,70 @@ import org.jsoup.select.Elements;
  */
 public class ConversorTextoAutor {
 	
-	private Autor autor;
-	private String texto;
-	private Document documento;
+	private static final String SEPARADOR = "|";
+	private static final String TAG_REVISTA = "(<br>)(.)+";
+	private static final String TAG_PAIS = "(En: )(.)+";
+	private static final String TAG_TITULO = "\".+\"";
+	private static final String TAG_ARTICULO = "blockquote";
+	private static final String REG_NO_ESPACIOS = "(\\s{3,})";
+	private static final String REG_NO_DOBLE_ESPACIO = "(\\s{2})";
+	private static final String TAG_NOMBRE = "<td>Nombre</td>(.*?)</td>";
+	private static String texto;
+	private static Document documento;
 	private static final String INICIO_CONTENIDO = "<!--Bibliografica-->";
-	private static final String FIN_CONTENIDO = "<td width=\"100%\"><a name=\"libros\"></a></td>";
-	private static final String EXP_REG_NO_HTML = "<[^>]*>";
+	private static final String FIN_CONTENIDO = "<td width=\"100%\"><a name=\"libros\"></a>";
+	private static final String REG_NO_HTML = "<[^>]*>";
 	
-	public ConversorTextoAutor(String archivo) {
-		try {
-			texto = LectorWeb.leerArticulo(archivo);
-			autor = new Autor(obtenerDato("<td>Nombre</td>(.*?)</td>", texto).replace("Nombre", "")
-					.replaceAll("(\\s{2,})", "").replaceAll(EXP_REG_NO_HTML, ""), obtenerDato(
-					"<td>Categoría</td>(.*?)</td>", texto).replace("Categoría", "")
-					.replaceAll("(\\s{2,})", "").replaceAll(EXP_REG_NO_HTML, ""));
-			System.out.println(autor.toString());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
 	
-	private void extraerTextoArticulo(String textoInicio, String textoFin) {
+	private static void extraerTextoArticulo(String textoInicio, String textoFin) {
 		int indexInicioMetadatos = texto.indexOf(textoInicio);
 		int indexFinMetadatos = texto.indexOf(textoFin);
 		documento = Jsoup.parse(texto.substring(indexInicioMetadatos, indexFinMetadatos));
 	}
 	
-	public void extraerArticulos() {
-		extraerTextoArticulo(INICIO_CONTENIDO, FIN_CONTENIDO);
-		Elements listaArticulos =
-				documento.select("blockquote");
-		for (Element articuloWeb : listaArticulos) {
-			String texto = articuloWeb.html();
-			Articulo articulo = new Articulo();
-			articulo.setTitulo(obtenerDato("\".+\"", texto));
-			articulo.setPais(obtenerDato("(En: )(.)+", texto).substring(4));
-			articulo.setRevista(obtenerDato("(<br>)(.)+", texto).substring(5));
-			System.out.println(articulo.toString());
-			autor.agregarArticulo(articulo);
-			System.out.println("-------------------------------------");
+	public static void analizarAutores() throws IOException {
+		List<String> lista = LectorArchivosTextos.leerEnlacesAutores();
+		for (String enlaceAutor : lista) {
+			extraerArticulosAutor(enlaceAutor);
 		}
 	}
+	
+	public static void extraerArticulosAutor(String enlace) throws IOException {
+		texto = LectorWeb.leerArticulo(enlace);
+		StringBuilder articulo = new StringBuilder();
+		articulo.append(normalizarNombre(obtenerDato(TAG_NOMBRE, texto).replace("Nombre", "")
+				.replaceAll(REG_NO_DOBLE_ESPACIO, " ")
+				.replaceAll(REG_NO_ESPACIOS, "").replaceAll(REG_NO_HTML, "")));
+		articulo.append(SEPARADOR);
+		extraerTextoArticulo(INICIO_CONTENIDO, FIN_CONTENIDO);
+		Elements listaArticulos = documento.select(TAG_ARTICULO);
+		int indexDatosAutor = articulo.length();
+		for (Element articuloWeb : listaArticulos) {
+			String texto = articuloWeb.html();
+			articulo.delete(indexDatosAutor, articulo.length());
+			articulo.append(obtenerDato(TAG_TITULO, texto).toUpperCase());
+			articulo.append(SEPARADOR);
+			String pais = obtenerDato(TAG_PAIS, texto).substring(4);
+			articulo.append(pais.substring(0, pais.length() - 1));
+			articulo.append(SEPARADOR);
+			articulo.append(obtenerDato(TAG_REVISTA, texto).substring(5));
+			articulo.append(System.lineSeparator());
+			LectorArchivosTextos.escribirLineaArchivo(articulo.toString());
+		}
+	}
+	
+	private static String normalizarNombre(String nombre) {
+		String[] palabras = nombre.split(" ");
+		StringBuilder nombreNormalizado = new StringBuilder();
+		for (String palabra : palabras) {
+			nombreNormalizado.append(palabra.substring(0, 1).toUpperCase());
+			nombreNormalizado.append(palabra.substring(1).toLowerCase());
+			nombreNormalizado.append(" ");
+		}
+		return nombreNormalizado.toString().substring(0, nombreNormalizado.toString().length() - 1);
+	}
 
-	private String obtenerDato(String expresion, String texto, int respuesta) {
+	private static String obtenerDato(String expresion, String texto, int respuesta) {
 		Pattern patron = Pattern.compile(expresion);
 		Matcher interpretador = patron.matcher(texto);
 		String resultado = null;
@@ -76,7 +97,7 @@ public class ConversorTextoAutor {
 		return resultado;
 	}
 	
-	private String obtenerDato(String expresion, String texto) {
+	private static String obtenerDato(String expresion, String texto) {
 		return obtenerDato(expresion, texto, 0);
 	}
 }
