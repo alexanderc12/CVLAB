@@ -25,6 +25,9 @@ import persistencia.LectorArchivosTextos;
  */
 public class ConversorTextoAutor {
 	
+	private static final String FIN_PROYECTOS = "</body>";
+	private static final String TAG_PROYECTOS = "<td><h3>Proyectos</h3></td>";
+	private static final String TAG_LIBRO = "blockquote";
 	private static final String SOLO_ASCII = "[^\\p{ASCII}]";
 	private static final String SEPARADOR = "|";
 	private static final String TAG_REVISTA = "(<br>)(.)+";
@@ -39,6 +42,8 @@ public class ConversorTextoAutor {
 	private static final String INICIO_CONTENIDO = "<!--Bibliografica-->";
 	private static final String FIN_CONTENIDO = "<td width=\"100%\"><a name=\"libros\"></a>";
 	private static final String REG_NO_HTML = "<[^>]*>";
+	private static final String FIN_LIBROS = "<td width=\"100%\"><a name=\"capitulos\"></a></td>";
+	private static final String TAG_CATEGORIA = "<td>Categoría</td>(.*?)</td>";
 	private static String texto;
 	private static Document documento;
 	private static String textoWeb;
@@ -65,7 +70,7 @@ public class ConversorTextoAutor {
 		return obtenerDato(expresion, texto, 0);
 	}
 	
-	private static String agregarNombre(StringBuilder articulo) {
+	private static String agregarNombre() {
 		String nombre = quitarAcentos(normalizarNombre(obtenerDato(TAG_NOMBRE, texto).replace("Nombre", "")
 				.replaceAll(REG_NO_DOBLE_ESPACIO, " ").replaceAll(REG_NO_ESPACIOS, "").replaceAll(REG_NO_HTML, "")));
 		articulo.append(nombre);
@@ -73,6 +78,17 @@ public class ConversorTextoAutor {
 		return nombre;
 	}
 	
+	private static void agregarCategoria() {
+		String categoria = obtenerDato(TAG_CATEGORIA, texto);
+		if (categoria != null) {
+			categoria = categoria.replaceAll(REG_NO_ESPACIOS, "");
+			articulo.append(categoria.substring(93, categoria.indexOf("<b>")));
+		} else {
+			articulo.append("Sin categoria");
+		}
+		articulo.append(SEPARADOR);
+	}
+
 	private static void agregarCoautores(String nombre) {
 		String[] listaAutores = textoWeb.substring(0, textoWeb.indexOf("\"") - 2).split(",");
 		int numeroAutores = 0;
@@ -116,13 +132,14 @@ public class ConversorTextoAutor {
 	
 	private static void agregarAnio() {
 		articulo.append(obtenerDato(TAG_ANIO, textoWeb).substring(1));
-		articulo.append(System.lineSeparator());
+		articulo.append(SEPARADOR);
 	}
 
 	public static void extraerArticulosAutor(String enlace) throws IOException {
 		texto = LectorWeb.leerArticulo(enlace);
 		articulo = new StringBuilder();
-		String nombre = agregarNombre(articulo);
+		String nombre = agregarNombre();
+		agregarCategoria();
 		extraerTextoArticulo(INICIO_CONTENIDO, FIN_CONTENIDO);
 		Elements listaArticulos = documento.select(TAG_ARTICULO);
 		int indexDatosAutor = articulo.length();
@@ -135,10 +152,28 @@ public class ConversorTextoAutor {
 			agregarRevista();
 			agregarISSN();
 			agregarAnio();
+			contarLibros();
+			contarProyectos();
 			LectorArchivosTextos.escribirLineaArchivo(articulo.toString());
 		}
 	}
 	
+	public static void contarLibros() {
+		extraerTextoArticulo(FIN_CONTENIDO, FIN_LIBROS);
+		articulo.append(documento.getElementsByTag(TAG_LIBRO).size());
+		articulo.append(SEPARADOR);
+	}
+	
+	public static void contarProyectos() {
+		if (texto.contains(TAG_PROYECTOS)) {
+			extraerTextoArticulo(TAG_PROYECTOS, FIN_PROYECTOS);
+			articulo.append(documento.getElementsByTag(TAG_LIBRO).size());
+		} else {
+			articulo.append("0");
+		}
+		articulo.append(System.lineSeparator());
+	}
+
 	private static String normalizarNombre(String nombre) {
 		String[] palabras = nombre.split(" ");
 		StringBuilder nombreNormalizado = new StringBuilder();
