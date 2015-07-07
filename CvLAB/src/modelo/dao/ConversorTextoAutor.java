@@ -24,7 +24,7 @@ import persistencia.LectorArchivosTextos;
  *
  */
 public class ConversorTextoAutor {
-	
+
 	private static final String FIN_PROYECTOS = "</body>";
 	private static final String TAG_PROYECTOS = "<td><h3>Proyectos</h3></td>";
 	private static final String TAG_LIBRO = "blockquote";
@@ -42,20 +42,20 @@ public class ConversorTextoAutor {
 	private static final String INICIO_CONTENIDO = "<!--Bibliografica-->";
 	private static final String FIN_CONTENIDO = "<td width=\"100%\"><a name=\"libros\"></a>";
 	private static final String REG_NO_HTML = "<[^>]*>";
-	private static final String FIN_LIBROS = "<td width=\"100%\"><a name=\"capitulos\"></a></td>";
+	private static final String FIN_LIBROS = "<td width=\"100%\"><a name=\"capitulos\"></a>";
 	private static final String TAG_CATEGORIA = "<td>Categoría</td>(.*?)</td>";
 	private static String texto;
 	private static Document documento;
 	private static String textoWeb;
 	private static StringBuilder articulo;
-	
-	
+
+
 	private static void extraerTextoArticulo(String textoInicio, String textoFin) {
 		int indexInicioMetadatos = texto.indexOf(textoInicio);
 		int indexFinMetadatos = texto.indexOf(textoFin);
 		documento = Jsoup.parse(texto.substring(indexInicioMetadatos, indexFinMetadatos));
 	}
-	
+
 	private static String obtenerDato(String expresion, String texto, int respuesta) {
 		Pattern patron = Pattern.compile(expresion);
 		Matcher interpretador = patron.matcher(texto);
@@ -65,11 +65,11 @@ public class ConversorTextoAutor {
 		}
 		return resultado;
 	}
-	
+
 	private static String obtenerDato(String expresion, String texto) {
 		return obtenerDato(expresion, texto, 0);
 	}
-	
+
 	private static String agregarNombre() {
 		String nombre = quitarAcentos(normalizarNombre(obtenerDato(TAG_NOMBRE, texto).replace("Nombre", "")
 				.replaceAll(REG_NO_DOBLE_ESPACIO, " ").replaceAll(REG_NO_ESPACIOS, "").replaceAll(REG_NO_HTML, "")));
@@ -77,7 +77,7 @@ public class ConversorTextoAutor {
 		articulo.append(SEPARADOR);
 		return nombre;
 	}
-	
+
 	private static void agregarCategoria() {
 		String categoria = obtenerDato(TAG_CATEGORIA, texto);
 		if (categoria != null) {
@@ -113,23 +113,23 @@ public class ConversorTextoAutor {
 		articulo.append(obtenerDato(TAG_TITULO, textoWeb).toUpperCase());
 		articulo.append(SEPARADOR);
 	}
-	
+
 	private static void agregraPais() {
 		String pais = obtenerDato(TAG_PAIS, textoWeb).substring(4);
 		articulo.append(pais.substring(0, pais.length() - 1));
 		articulo.append(SEPARADOR);
 	}
-	
+
 	private static void agregarRevista() {
 		articulo.append(obtenerDato(TAG_REVISTA, textoWeb).substring(5));
 		articulo.append(SEPARADOR);
 	}
-	
+
 	private static void agregarISSN() {
 		articulo.append(obtenerDato(TAG_ISSN, textoWeb).substring(10));
 		articulo.append(SEPARADOR);
 	}
-	
+
 	private static void agregarAnio() {
 		articulo.append(obtenerDato(TAG_ANIO, textoWeb).substring(1));
 		articulo.append(SEPARADOR);
@@ -157,13 +157,13 @@ public class ConversorTextoAutor {
 			LectorArchivosTextos.escribirLineaArchivo(articulo.toString());
 		}
 	}
-	
+
 	public static void contarLibros() {
 		extraerTextoArticulo(FIN_CONTENIDO, FIN_LIBROS);
 		articulo.append(documento.getElementsByTag(TAG_LIBRO).size());
 		articulo.append(SEPARADOR);
 	}
-	
+
 	public static void contarProyectos() {
 		if (texto.contains(TAG_PROYECTOS)) {
 			extraerTextoArticulo(TAG_PROYECTOS, FIN_PROYECTOS);
@@ -191,6 +191,7 @@ public class ConversorTextoAutor {
 	public static void analizarAutores() throws IOException {
 		List<String> lista = LectorArchivosTextos.leerEnlacesAutores();
 		for (String enlaceAutor : lista) {
+			System.out.println(enlaceAutor);
 			extraerArticulosAutor(enlaceAutor);
 		}
 	}
